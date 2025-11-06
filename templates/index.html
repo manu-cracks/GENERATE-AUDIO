@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Cuentos en Audio</title>
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Mantener reglas mínimas para compatibilidad con el JS existente */
+        body { background-color: #03363d; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .loader { display: none; }
+        .loader.show { display: block; }
+        .result { display: none; }
+        .result.show { display: block; }
+        .error { display: none; }
+        .error.show { display: block; }
+        .file-info { display: none; }
+        .file-info.show { display: block; }
+        .tab.active { border-bottom: 2px solid #0d9488; color: #0d9488; font-weight: 600; }
+        .upload-area.dragover { background-color: #e2e8f0; border-color: #0d9488; }
+    </style>
+</head>
+<body class="min-h-screen py-10 text-slate-100">
+    <div class="w-full max-w-4xl mx-auto px-4">
+        <div class="bg-white text-slate-900 border border-slate-200 rounded-none shadow-lg p-8">
+            <h1 class="text-2xl font-semibold text-center tracking-tight">Generador de Cuentos en Audio</h1>
+            <p class="text-center text-slate-600 mt-2">Convierte tus documentos en narraciones profesionales</p>
+
+            <!-- Tabs -->
+            <div class="flex mt-6 border-b border-slate-200">
+                <button class="tab flex-1 px-4 py-3 text-center text-slate-600 hover:text-teal-600" onclick="cambiarTab('archivo')">Subir Archivo</button>
+                <button class="tab flex-1 px-4 py-3 text-center text-slate-600 hover:text-teal-600" onclick="cambiarTab('texto')">Escribir Texto</button>
+            </div>
+
+            <form id="formulario" enctype="multipart/form-data" class="mt-6">
+                <!-- Tab de Archivo -->
+                <div id="tab-archivo" class="tab-content active">
+                    <div id="uploadArea" class="upload-area border-2 border-dashed border-slate-300 rounded-none p-12 text-center cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <div class="text-5xl mb-4">📄</div>
+                        <h3 class="text-slate-800 font-medium">Arrastra un archivo aquí o haz clic para seleccionar</h3>
+                        <p class="supported-formats text-sm text-slate-500 mt-2">Formatos soportados: PDF, Word (.docx), PowerPoint (.pptx), TXT</p>
+                        <input type="file" id="archivo" name="archivo" accept=".pdf,.docx,.pptx,.txt" style="display: none;">
+                    </div>
+                    <div id="fileInfo" class="file-info mt-4 p-4 bg-slate-50 border border-slate-200 text-slate-700">
+                        <strong>Archivo seleccionado:</strong> <span id="fileName"></span>
+                    </div>
+                </div>
+
+                <!-- Tab de Texto -->
+                <div id="tab-texto" class="tab-content">
+                    <textarea id="texto_directo" name="texto_directo" placeholder="Escribe o pega aquí el contenido que quieres convertir en un cuento narrado..."
+                        class="w-full min-h-48 p-4 border border-slate-300 rounded-none text-slate-800 focus:outline-none focus:border-teal-600">
+                    </textarea>
+                </div>
+
+                <button type="submit" id="btnProcesar" class="w-full mt-6 px-4 py-3 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-none transition-colors">Generar Cuento en Audio</button>
+            </form>
+
+            <!-- Loader -->
+            <div class="loader text-center mt-6" id="loader">
+                <div class="flex items-center justify-center">
+                    <svg class="animate-spin h-8 w-8 text-teal-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    <p class="ml-3 text-slate-600">Generando tu cuento... Esto puede tomar unos momentos</p>
+                </div>
+            </div>
+
+            <!-- Error -->
+            <div class="error mt-6 p-4 border border-red-200 bg-red-50 text-red-700" id="error"></div>
+
+            <!-- Resultado -->
+            <div class="result mt-8 p-6 border border-emerald-200 bg-emerald-50 text-emerald-800" id="result">
+                <h3 class="text-lg font-semibold">Tu cuento está listo</h3>
+                <audio controls class="audio-player w-full mt-4 border border-slate-200" id="audioPlayer">
+                    Tu navegador no soporta el elemento de audio.
+                </audio>
+                <a id="btnDescargar" class="btn-descargar block w-full text-center mt-4 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-none transition-colors" download="mi-cuento.mp3">
+                    Guardar Audio en mi PC
+                </a>
+                <div class="texto-generado mt-6 p-4 bg-white border border-slate-200 max-h-72 overflow-y-auto">
+                    <h4 class="text-teal-700 font-medium mb-2">Texto del Cuento</h4>
+                    <p id="textoGenerado" class="text-slate-700"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('archivo');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const formulario = document.getElementById('formulario');
+        const loader = document.getElementById('loader');
+        const result = document.getElementById('result');
+        const error = document.getElementById('error');
+        const btnProcesar = document.getElementById('btnProcesar');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const textoGenerado = document.getElementById('textoGenerado');
+        const btnDescargar = document.getElementById('btnDescargar');
+
+        let tabActual = 'archivo';
+
+        // Cambiar entre tabs
+        function cambiarTab(tab) {
+            tabActual = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            if (tab === 'archivo') {
+                document.getElementById('tab-archivo').classList.add('active');
+                document.querySelectorAll('.tab')[0].classList.add('active');
+            } else {
+                document.getElementById('tab-texto').classList.add('active');
+                document.querySelectorAll('.tab')[1].classList.add('active');
+            }
+        }
+
+        // Upload area interactions
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                fileName.textContent = e.target.files[0].name;
+                fileInfo.classList.add('show');
+            }
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                fileName.textContent = e.dataTransfer.files[0].name;
+                fileInfo.classList.add('show');
+            }
+        });
+
+        // Enviar formulario
+        formulario.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Ocultar mensajes previos
+            result.classList.remove('show');
+            error.classList.remove('show');
+            
+            // Mostrar loader
+            loader.classList.add('show');
+            btnProcesar.disabled = true;
+
+            const formData = new FormData();
+
+            if (tabActual === 'archivo') {
+                if (fileInput.files.length === 0) {
+                    mostrarError('Por favor selecciona un archivo');
+                    return;
+                }
+                formData.append('archivo', fileInput.files[0]);
+            } else {
+                const texto = document.getElementById('texto_directo').value;
+                if (!texto.trim()) {
+                    mostrarError('Por favor escribe algún texto');
+                    return;
+                }
+                formData.append('texto_directo', texto);
+            }
+
+            try {
+                const response = await fetch('/procesar', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Mostrar resultado
+                    audioPlayer.src = data.audio_url;
+                    textoGenerado.textContent = data.texto_generado;
+                    
+                    // Configurar botón de descarga con nombre personalizado
+                    btnDescargar.href = data.audio_url;
+                    btnDescargar.download = data.filename || 'mi-cuento.mp3';
+                    
+                    result.classList.add('show');
+                } else {
+                    mostrarError(data.error || 'Error al procesar');
+                }
+            } catch (err) {
+                mostrarError('Error de conexión: ' + err.message);
+            } finally {
+                loader.classList.remove('show');
+                btnProcesar.disabled = false;
+            }
+        });
+
+        function mostrarError(mensaje) {
+            error.textContent = mensaje;
+            error.classList.add('show');
+            loader.classList.remove('show');
+            btnProcesar.disabled = false;
+        }
+    </script>
+</body>
+</html>
